@@ -1,37 +1,18 @@
 #pragma once
 
-#include <Arduino_GFX_Library.h>
-#include <TouchDrvCSTXXX.hpp>
-#include <XPowersLib.h>
-#include <SensorQMI8658.hpp>
-#include <Wire.h>
+// AOKIN ESP32-2432S028R "CYD" pin map (landscape orientation).
+//
+// Display rotation 1 (TFT_eSPI rotation index) makes the panel 320 wide × 240 tall.
+#define SCR_W 320
+#define SCR_H 240
+#define TFT_ROTATION 1
 
-// ---- Display resolution ----
-#define LCD_WIDTH   480
-#define LCD_HEIGHT  480
-
-// ---- QSPI display pins (CO5300) ----
-#define LCD_CS      12
-#define LCD_SCLK    38
-#define LCD_SDIO0   4
-#define LCD_SDIO1   5
-#define LCD_SDIO2   6
-#define LCD_SDIO3   7
-#define LCD_RESET   2
-
-// ---- Touch pins (CST9220 via I2C) ----
-#define IIC_SDA     15
-#define IIC_SCL     14
-#define TP_INT      11
-#define TP_RST      2    // shared with LCD_RESET
-#define CST9220_ADDR 0x5A
-
-// ---- PMU (AXP2101 via same I2C) ----
-#define AXP2101_ADDR 0x34
-
-// ---- Global hardware objects (defined in main.cpp) ----
-extern Arduino_DataBus *bus;
-extern Arduino_CO5300 *gfx;
-extern TouchDrvCST92xx touch;
-extern XPowersPMU pmu;
-extern SensorQMI8658 imu;
+// All TFT_* and TOUCH_* pin macros are passed in via platformio.ini build_flags
+// (USER_SETUP_LOADED=1 means TFT_eSPI does not load its own User_Setup.h).
+//
+// Reserved-but-unused CYD pins (left here for future reference):
+//   GPIO 26 — speaker amp
+//   GPIO 34 — LDR (light sensor, input-only)
+//   GPIO 5  — SD card CS
+//   GPIO 4 / 16 / 17 — RGB LED R/G/B
+//   GPIO 0  — BOOT button (flashing only)
