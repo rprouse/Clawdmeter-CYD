@@ -34,7 +34,6 @@ void setup() {
 
     tft.begin();
     tft.setRotation(TFT_ROTATION);
-    tft.setSwapBytes(true);
 
     // --- Color test pattern (bypasses LVGL) ---
     // Three labeled stripes — left to right: RED, GREEN, BLUE.
