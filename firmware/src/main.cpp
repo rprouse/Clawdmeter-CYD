@@ -32,6 +32,7 @@ void setup() {
 
     tft.begin();
     tft.setRotation(TFT_ROTATION);
+    tft.setSwapBytes(true);   // CYD panel reads bytes in the swapped order
     tft.fillScreen(TFT_BLACK);
     tft.initDMA();
 
