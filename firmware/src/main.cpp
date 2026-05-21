@@ -35,6 +35,12 @@ void setup() {
     tft.begin();
     tft.setRotation(TFT_ROTATION);
 
+    // CYD's ILI9341 needs MADCTL=0x68 for landscape with correct R/B order.
+    // TFT_eSPI's TFT_RGB_ORDER build_flag is not getting honored in our setup,
+    // so we override the register explicitly. 0x68 = MX | MV | BGR.
+    tft.writecommand(0x36);
+    tft.writedata(0x68);
+
     // --- Color test pattern (bypasses LVGL) ---
     // Three labeled stripes — left to right: RED, GREEN, BLUE.
     // If you see them in that order, panel + TFT_eSPI are correct and any
