@@ -2,8 +2,9 @@
 #include <TFT_eSPI.h>
 #include <lvgl.h>
 #include "display_cfg.h"
+#include "touch.h"
 
-static TFT_eSPI tft;
+TFT_eSPI tft;
 
 // Double-buffered partial render. Two 320×20 buffers in SRAM (~12.5 KB each).
 // Sized down from the design's 320×40 — at 320×40 the linker overflows DRAM
@@ -75,11 +76,23 @@ static void check_serial_cmd() {
             cmd_buf[cmd_pos] = '\0';
             if (strcmp(cmd_buf, "screenshot") == 0) {
                 send_screenshot();
+            } else if (strcmp(cmd_buf, "touch-cal") == 0) {
+                touch_force_recalibrate();
             }
             cmd_pos = 0;
         } else if (cmd_pos < CMD_BUF_SIZE - 1) {
             cmd_buf[cmd_pos++] = c;
         }
+    }
+}
+
+static void lvgl_touch_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
+    if (touch_pressed) {
+        data->state = LV_INDEV_STATE_PRESSED;
+        data->point.x = touch_x;
+        data->point.y = touch_y;
+    } else {
+        data->state = LV_INDEV_STATE_RELEASED;
     }
 }
 
@@ -93,6 +106,7 @@ void setup() {
     // For pushPixelsDMA (used by LVGL's flush callback). Does NOT affect
     // fillRect / drawString / other direct TFT_eSPI draw calls.
     tft.setSwapBytes(true);
+    touch_init();   // may run a calibration screen on first boot
     tft.fillScreen(TFT_BLACK);
     tft.initDMA();
 
@@ -103,6 +117,11 @@ void setup() {
     lv_display_set_buffers(lv_disp, buf1, buf2, sizeof(buf1),
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
 
+    lv_indev_t* indev = lv_indev_create();
+    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(indev, lvgl_touch_read_cb);
+    lv_indev_set_long_press_time(indev, 1500);   // for destructive actions later
+
     // Smoke test: orange rectangle on black
     lv_obj_t* scr = lv_screen_active();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), 0);
@@ -112,11 +131,18 @@ void setup() {
     lv_obj_center(box);
     lv_obj_set_style_bg_color(box, lv_color_hex(0xd97757), 0);
     lv_obj_t* lbl = lv_label_create(box);
-    lv_label_set_text(lbl, "CYD bring-up");
+    lv_label_set_text(lbl, "Tap me");
+    lv_obj_add_event_cb(box, [](lv_event_t* e) {
+        static bool on = false;
+        on = !on;
+        lv_obj_set_style_bg_color(lv_event_get_target_obj(e),
+            lv_color_hex(on ? 0x788c5d : 0xd97757), 0);
+    }, LV_EVENT_CLICKED, NULL);
     lv_obj_center(lbl);
 }
 
 void loop() {
+    touch_read();
     lv_timer_handler();
     check_serial_cmd();
     delay(5);
