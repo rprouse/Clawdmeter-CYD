@@ -32,14 +32,8 @@ void setup() {
     Serial.printf("sizeof(lv_color_t)=%d (expect 2 for RGB565)\n",
                   (int)sizeof(lv_color_t));
 
-    tft.begin();
+    tft.init();
     tft.setRotation(TFT_ROTATION);
-
-    // CYD's ILI9341 needs MADCTL=0x68 for landscape with correct R/B order.
-    // TFT_eSPI's TFT_RGB_ORDER build_flag is not getting honored in our setup,
-    // so we override the register explicitly. 0x68 = MX | MV | BGR.
-    tft.writecommand(0x36);
-    tft.writedata(0x68);
 
     // --- Color test pattern (bypasses LVGL) ---
     // Three labeled stripes — left to right: RED, GREEN, BLUE.
