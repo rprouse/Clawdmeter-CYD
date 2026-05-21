@@ -34,6 +34,9 @@ void setup() {
 
     tft.init();
     tft.setRotation(TFT_ROTATION);
+    // For pushPixelsDMA (used by LVGL's flush callback). Does NOT affect
+    // fillRect / drawString / other direct TFT_eSPI draw calls.
+    tft.setSwapBytes(true);
 
     // --- Color test pattern (bypasses LVGL) ---
     // Three labeled stripes — left to right: RED, GREEN, BLUE.
