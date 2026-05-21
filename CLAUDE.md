@@ -4,6 +4,40 @@ ESP32-S3 firmware for a desk-side Claude Code usage monitor on a **Waveshare ESP
 
 This file is for future Claude Code sessions to bootstrap quickly. Read this first.
 
+> **🚧 Active port — branch `cyd-port`**
+>
+> The project is being ported off the Waveshare board to an **AOKIN CYD (ESP32-2432S028R, 320×240 landscape)**. Spec: `docs/superpowers/specs/2026-05-19-cyd-port-design.md`. Plan: `docs/superpowers/plans/2026-05-19-cyd-port.md`. The rest of this file still describes the Waveshare hardware until the port lands. Once it does, everything below `## Daemon / host side` will be rewritten.
+
+## CYD hardware (active port target)
+
+**The CYD's display chip is ST7789, NOT ILI9341.** The CYD form factor is sold with at least two different display controllers (ILI9341 in older batches, ST7789 in newer including this AOKIN board), and product listings rarely disclose which. If you see weird color shifts or rotation/MADCTL issues during CYD bring-up, suspect the chip identity before suspecting your code.
+
+Known-good TFT_eSPI `build_flags` for this physical board (verified working on `cyd-port` branch):
+
+```ini
+-DUSER_SETUP_LOADED=1
+-DST7789_DRIVER=1
+-DTFT_WIDTH=240
+-DTFT_HEIGHT=320
+-DTFT_RGB_ORDER=TFT_BGR
+-DTFT_INVERSION_OFF=1        ; ST7789 defaults to inverted; turn off explicitly
+-DTFT_MISO=12  -DTFT_MOSI=13  -DTFT_SCLK=14  -DTFT_CS=15  -DTFT_DC=2  -DTFT_RST=-1
+-DUSE_HSPI_PORT=1            ; CYD wires TFT on HSPI not VSPI
+-DTFT_BL=21  -DTFT_BACKLIGHT_ON=HIGH
+-DSPI_FREQUENCY=55000000
+-DTOUCH_CS=33                ; XPT2046 (only when touch is enabled)
+```
+
+Runtime setup is just `tft.init()` + `tft.setRotation(1)` — **no manual MADCTL writes, no `TFT_RGB_ORDER` overrides via macro tricks**. If pushing pixels via `pushPixelsDMA` (e.g. LVGL's flush callback), also call `tft.setSwapBytes(true)` once at init — this affects only `pushPixelsDMA`, not `fillRect`/`drawString`.
+
+A working **non-LVGL reference** for this exact board lives at `D:\src\Electronics\CarDashboard` — diff against its `platformio.ini` first when in doubt about any panel-driver setting.
+
+DRAM constraint: without PSRAM, two 320×40 RGB565 LVGL buffers (~50 KB) overflow `dram0_0_seg` by ~15 KB once NimBLE/LVGL/Arduino runtime/fonts are accounted for. Use 320×20 buffers (~25 KB total) or smaller.
+
+CH340 USB-UART: the board enumerates as a COM/`/dev/ttyUSB*` port. No JTAG; `pio run -e cyd -t upload` Just Works.
+
+---
+
 ## Hardware (critical pins)
 
 - Display: **CO5300** AMOLED via QSPI (CS=12, SCLK=38, SDIO0..3=4..7, RST=2)
