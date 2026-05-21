@@ -34,7 +34,22 @@ void setup() {
 
     tft.begin();
     tft.setRotation(TFT_ROTATION);
-    tft.setSwapBytes(true);   // CYD panel reads bytes in the swapped order
+    tft.setSwapBytes(true);
+
+    // --- Color test pattern (bypasses LVGL) ---
+    // Three labeled stripes — left to right: RED, GREEN, BLUE.
+    // If you see them in that order, panel + TFT_eSPI are correct and any
+    // remaining color issue is in our LVGL pipeline. If colors are swapped
+    // or wrong, the panel/driver layer is to blame.
+    tft.fillScreen(TFT_BLACK);
+    tft.fillRect(  0, 60, 106, 120, TFT_RED);
+    tft.fillRect(106, 60, 108, 120, TFT_GREEN);
+    tft.fillRect(214, 60, 106, 120, TFT_BLUE);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawString("RED  GREEN  BLUE", 80, 20, 2);
+    delay(5000);   // hold the test pattern long enough to inspect
+    // --- End test pattern ---
+
     tft.fillScreen(TFT_BLACK);
     tft.initDMA();
 
