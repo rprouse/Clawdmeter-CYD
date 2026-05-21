@@ -29,6 +29,8 @@ void setup() {
     Serial.begin(115200);
     delay(200);
     Serial.println("Clawdmeter / CYD boot");
+    Serial.printf("sizeof(lv_color_t)=%d (expect 2 for RGB565)\n",
+                  (int)sizeof(lv_color_t));
 
     tft.begin();
     tft.setRotation(TFT_ROTATION);
