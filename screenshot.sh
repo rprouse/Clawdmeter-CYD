@@ -1,13 +1,14 @@
 #!/bin/bash
-# Take a screenshot from the Waveshare AMOLED display via LVGL snapshot.
+# Take a screenshot from the CYD display via LVGL snapshot.
 # Usage: ./screenshot.sh [output.png] [port]
-# Default port: /dev/cu.usbmodem101 on macOS, /dev/ttyACM0 on Linux.
+# Default port: /dev/cu.usbserial-* on macOS, /dev/ttyUSB0 on Linux.
+# On Windows pass the COM port explicitly, e.g. ./screenshot.sh out.png COM3
 
 OUTPUT="${1:-screenshot.png}"
 if [ -z "$2" ]; then
     case "$(uname -s)" in
-        Darwin) PORT="/dev/cu.usbmodem101" ;;
-        *)      PORT="/dev/ttyACM0" ;;
+        Darwin) PORT=$(ls /dev/cu.usbserial-* 2>/dev/null | head -1) ;;
+        *)      PORT="/dev/ttyUSB0" ;;                                  # CYD CH340
     esac
 else
     PORT="$2"

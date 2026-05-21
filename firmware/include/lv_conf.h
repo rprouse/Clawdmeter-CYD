@@ -18,3 +18,4 @@
 #define LV_USE_QRCODE 0
 #define LV_BUILD_EXAMPLES 0
 #define LV_USE_DEMO_WIDGETS 0
+#define LV_USE_SNAPSHOT 1

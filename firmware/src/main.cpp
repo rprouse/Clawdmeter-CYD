@@ -25,6 +25,64 @@ static void disp_flush(lv_display_t* disp, const lv_area_t* area, uint8_t* px_ma
 
 static uint32_t millis_cb(void) { return millis(); }
 
+// ---- Screenshot serial command ----
+//
+// Streams the LVGL screen as raw RGB565 over USB serial, framed by
+// "SCREENSHOT_START w h size" / "SCREENSHOT_END". The host-side
+// screenshot.sh script captures and converts to PNG via ffmpeg.
+
+#define CMD_BUF_SIZE 64
+static char cmd_buf[CMD_BUF_SIZE];
+static int  cmd_pos = 0;
+
+static void send_screenshot() {
+    const uint32_t w = SCR_W, h = SCR_H;
+    const uint32_t row_bytes = w * 2;
+    const uint32_t buf_size  = row_bytes * h;
+    uint8_t* sbuf = (uint8_t*)malloc(buf_size);   // no PSRAM on CYD
+    if (!sbuf) {
+        Serial.println("SCREENSHOT_ERR");
+        return;
+    }
+
+    lv_draw_buf_t draw_buf;
+    lv_draw_buf_init(&draw_buf, w, h, LV_COLOR_FORMAT_RGB565, row_bytes,
+                     sbuf, buf_size);
+
+    lv_result_t res = lv_snapshot_take_to_draw_buf(
+        lv_screen_active(), LV_COLOR_FORMAT_RGB565, &draw_buf);
+    if (res != LV_RESULT_OK) {
+        free(sbuf);
+        Serial.println("SCREENSHOT_ERR");
+        return;
+    }
+
+    Serial.printf("SCREENSHOT_START %lu %lu %lu\n",
+                  (unsigned long)w, (unsigned long)h, (unsigned long)buf_size);
+    Serial.flush();
+    Serial.write(sbuf, buf_size);
+    Serial.flush();
+    Serial.println();
+    Serial.println("SCREENSHOT_END");
+
+    free(sbuf);
+}
+
+static void check_serial_cmd() {
+    while (Serial.available()) {
+        char c = Serial.read();
+        if (c == '\n' || c == '\r') {
+            cmd_buf[cmd_pos] = '\0';
+            if (strcmp(cmd_buf, "screenshot") == 0) {
+                send_screenshot();
+            }
+            cmd_pos = 0;
+        } else if (cmd_pos < CMD_BUF_SIZE - 1) {
+            cmd_buf[cmd_pos++] = c;
+        }
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     delay(200);
@@ -60,5 +118,6 @@ void setup() {
 
 void loop() {
     lv_timer_handler();
+    check_serial_cmd();
     delay(5);
 }
