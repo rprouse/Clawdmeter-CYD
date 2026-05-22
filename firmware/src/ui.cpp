@@ -210,12 +210,10 @@ static lv_obj_t* make_pill(lv_obj_t* parent, const char* text) {
 }
 
 // ---- Battery icon initialization ----
+// Battery indicator is dropped in the CYD port (no PMU on CYD); this function
+// becomes a no-op so the existing call in ui_init() still resolves. The whole
+// battery-icon system goes away in Phase 5 when ui.cpp is rewritten.
 static void init_battery_icons(void) {
-    init_icon_dsc_rgb565a8(&battery_dscs[0], ICON_BATTERY_W, ICON_BATTERY_H, icon_battery_data);
-    init_icon_dsc_rgb565a8(&battery_dscs[1], ICON_BATTERY_LOW_W, ICON_BATTERY_LOW_H, icon_battery_low_data);
-    init_icon_dsc_rgb565a8(&battery_dscs[2], ICON_BATTERY_MEDIUM_W, ICON_BATTERY_MEDIUM_H, icon_battery_medium_data);
-    init_icon_dsc_rgb565a8(&battery_dscs[3], ICON_BATTERY_FULL_W, ICON_BATTERY_FULL_H, icon_battery_full_data);
-    init_icon_dsc_rgb565a8(&battery_dscs[4], ICON_BATTERY_CHARGING_W, ICON_BATTERY_CHARGING_H, icon_battery_charging_data);
 }
 
 // ======== Usage Screen (480x480) ========
@@ -302,7 +300,7 @@ static void init_bluetooth_screen(lv_obj_t* scr) {
 
     // Bluetooth icon + status row
     static lv_image_dsc_t icon_bt_dsc;
-    init_icon_dsc(&icon_bt_dsc, ICON_BLUETOOTH_W, ICON_BLUETOOTH_H, icon_bluetooth_data);
+    init_icon_dsc_rgb565a8(&icon_bt_dsc, ICON_BLUETOOTH_W, ICON_BLUETOOTH_H, icon_bluetooth_data);
 
     lv_obj_t* bt_img = lv_image_create(p_info);
     lv_image_set_src(bt_img, &icon_bt_dsc);
@@ -342,7 +340,7 @@ static void init_bluetooth_screen(lv_obj_t* scr) {
     lv_obj_add_event_cb(reset_zone, ble_reset_click_cb, LV_EVENT_CLICKED, NULL);
 
     static lv_image_dsc_t icon_trash_dsc;
-    init_icon_dsc(&icon_trash_dsc, ICON_TRASH2_W, ICON_TRASH2_H, icon_trash2_data);
+    init_icon_dsc_rgb565a8(&icon_trash_dsc, ICON_TRASH2_W, ICON_TRASH2_H, icon_trash2_data);
     lv_obj_t* trash_img = lv_image_create(reset_zone);
     lv_image_set_src(trash_img, &icon_trash_dsc);
 
