@@ -50,10 +50,8 @@ static lv_obj_t* lbl_ble_status;
 static lv_obj_t* lbl_ble_device;
 static lv_obj_t* lbl_ble_mac;
 
-// ---- Battery indicator (shared, on top) ----
-static lv_obj_t* battery_img;
+// ---- Logo overlay (shared, on top) ----
 static lv_obj_t* logo_img;
-static lv_image_dsc_t battery_dscs[5];  // empty, low, medium, full, charging
 
 // ---- Shared ----
 static lv_image_dsc_t logo_dsc;
@@ -275,7 +273,7 @@ static void init_usage_screen(lv_obj_t* scr) {
     lv_obj_align(lbl_anim, LV_ALIGN_BOTTOM_MID, 0, -4);
 }
 
-// ======== Bluetooth Screen (480x480) ========
+// ======== Bluetooth Screen (320x240) ========
 
 static void init_bluetooth_screen(lv_obj_t* scr) {
     ble_container = lv_obj_create(scr);
@@ -291,24 +289,24 @@ static void init_bluetooth_screen(lv_obj_t* scr) {
     lv_label_set_text(lbl_ble_title, "Bluetooth");
     lv_obj_set_style_text_font(lbl_ble_title, &font_tiempos_22, 0);
     lv_obj_set_style_text_color(lbl_ble_title, COL_TEXT, 0);
-    lv_obj_align(lbl_ble_title, LV_ALIGN_TOP_MID, 16, TITLE_Y);
+    lv_obj_align(lbl_ble_title, LV_ALIGN_TOP_LEFT, MARGIN, TITLE_Y);
 
-    // Info panel (taller for 480x480)
-    lv_obj_t* p_info = make_panel(ble_container, MARGIN, CONTENT_Y, CONTENT_W, 160);
+    // Info panel: 96px tall fits BT icon + status + device + MAC
+    lv_obj_t* p_info = make_panel(ble_container, MARGIN, CONTENT_Y, CONTENT_W, 96);
 
-    // Bluetooth icon + status row
+    // Bluetooth icon (32x32)
     static lv_image_dsc_t icon_bt_dsc;
     init_icon_dsc_rgb565a8(&icon_bt_dsc, ICON_BLUETOOTH_W, ICON_BLUETOOTH_H, icon_bluetooth_data);
 
     lv_obj_t* bt_img = lv_image_create(p_info);
     lv_image_set_src(bt_img, &icon_bt_dsc);
-    lv_obj_set_pos(bt_img, 0, 0);
+    lv_obj_set_pos(bt_img, 0, 4);
 
     lbl_ble_status = lv_label_create(p_info);
     lv_label_set_text(lbl_ble_status, "Initializing...");
-    lv_obj_set_style_text_font(lbl_ble_status, &font_styrene_28, 0);
+    lv_obj_set_style_text_font(lbl_ble_status, &font_styrene_16, 0);
     lv_obj_set_style_text_color(lbl_ble_status, COL_DIM, 0);
-    lv_obj_set_pos(lbl_ble_status, 56, 2);
+    lv_obj_set_pos(lbl_ble_status, 40, 6);
 
     lbl_ble_device = lv_label_create(p_info);
     lv_label_set_text(lbl_ble_device, "Device: ---");
@@ -322,20 +320,21 @@ static void init_bluetooth_screen(lv_obj_t* scr) {
     lv_obj_set_style_text_color(lbl_ble_mac, COL_DIM, 0);
     lv_obj_set_pos(lbl_ble_mac, 0, 64);
 
-    // Reset Bluetooth tap zone with trash icon
-    int reset_y = CONTENT_Y + 160 + 16;
+    // Reset zone: long-press 1500ms to clear bonds (accidental-clear protection)
+    // y = CONTENT_Y + 96 + 8 = CONTENT_Y + 104
+    int reset_y = CONTENT_Y + 104;
     lv_obj_t* reset_zone = lv_obj_create(ble_container);
     lv_obj_set_pos(reset_zone, MARGIN, reset_y);
-    lv_obj_set_size(reset_zone, CONTENT_W, 110);
+    lv_obj_set_size(reset_zone, CONTENT_W, 36);
     lv_obj_set_style_bg_color(reset_zone, COL_PANEL, 0);
     lv_obj_set_style_bg_opa(reset_zone, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(reset_zone, 8, 0);
     lv_obj_set_style_border_width(reset_zone, 0, 0);
-    lv_obj_set_style_pad_column(reset_zone, 14, 0);
+    lv_obj_set_style_pad_column(reset_zone, 10, 0);
     lv_obj_set_flex_flow(reset_zone, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(reset_zone, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_clear_flag(reset_zone, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(reset_zone, ble_reset_click_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(reset_zone, ble_reset_click_cb, LV_EVENT_LONG_PRESSED, NULL);
 
     static lv_image_dsc_t icon_trash_dsc;
     init_icon_dsc_rgb565a8(&icon_trash_dsc, ICON_TRASH2_W, ICON_TRASH2_H, icon_trash2_data);
@@ -347,18 +346,12 @@ static void init_bluetooth_screen(lv_obj_t* scr) {
     lv_obj_set_style_text_font(reset_lbl, &font_styrene_12, 0);
     lv_obj_set_style_text_color(reset_lbl, COL_DIM, 0);
 
-    // Attribution
+    // Single-line credit at bottom
     lv_obj_t* lbl_credit = lv_label_create(ble_container);
-    lv_label_set_text(lbl_credit, "Built by @hermannbjorgvin");
+    lv_label_set_text(lbl_credit, "Built by @hermannbjorgvin \xC2\xB7 Clawd by @amaanbuilds");
     lv_obj_set_style_text_font(lbl_credit, &font_styrene_12, 0);
     lv_obj_set_style_text_color(lbl_credit, COL_DIM, 0);
-    lv_obj_align(lbl_credit, LV_ALIGN_BOTTOM_MID, 0, -46);
-
-    lv_obj_t* lbl_credit2 = lv_label_create(ble_container);
-    lv_label_set_text(lbl_credit2, "Clawd animation by @amaanbuilds");
-    lv_obj_set_style_text_font(lbl_credit2, &font_styrene_12, 0);
-    lv_obj_set_style_text_color(lbl_credit2, COL_DIM, 0);
-    lv_obj_align(lbl_credit2, LV_ALIGN_BOTTOM_MID, 0, -20);
+    lv_obj_align(lbl_credit, LV_ALIGN_BOTTOM_MID, 0, -4);
 
     // Start hidden
     lv_obj_add_flag(ble_container, LV_OBJ_FLAG_HIDDEN);
@@ -388,15 +381,12 @@ void ui_init(void) {
         lv_obj_add_event_cb(splash_get_root(), global_click_cb, LV_EVENT_CLICKED, NULL);
     }
 
-    // Logo on top of all containers (inset for rounded corners)
+    // Logo on top of all containers (top-left, inset)
     logo_img = lv_image_create(scr);
     lv_image_set_src(logo_img, &logo_dsc);
-    lv_obj_set_pos(logo_img, MARGIN, TITLE_Y - 10);
+    lv_obj_set_pos(logo_img, MARGIN, TITLE_Y - 4);
 
-    // Battery indicator on top of all containers (upper-right, inset)
-    battery_img = lv_image_create(scr);
-    lv_image_set_src(battery_img, &battery_dscs[0]);
-    lv_obj_set_pos(battery_img, SCR_W - 48 - MARGIN, TITLE_Y);
+    // battery_img is not created — no PMU on CYD
 }
 
 void ui_update(const UsageData* data) {
@@ -447,13 +437,6 @@ void ui_tick_anim(void) {
 }
 
 static screen_t prev_non_splash_screen = SCREEN_USAGE;
-// Hide the battery indicator on the splash screen — the icon is visually
-// noisy over the pixel-art creature animations.
-static void apply_battery_visibility(void) {
-    if (!battery_img) return;
-    if (current_screen == SCREEN_SPLASH) lv_obj_add_flag(battery_img, LV_OBJ_FLAG_HIDDEN);
-    else                                  lv_obj_clear_flag(battery_img, LV_OBJ_FLAG_HIDDEN);
-}
 
 // LVGL handles click debouncing internally. Screen-level handler fires when
 // no child consumed the event (children only consume if they have their own
@@ -490,7 +473,6 @@ void ui_show_screen(screen_t screen) {
 
     if (screen != SCREEN_SPLASH) prev_non_splash_screen = screen;
     current_screen = screen;
-    apply_battery_visibility();
 }
 
 void ui_cycle_screen(void) {
@@ -539,21 +521,6 @@ void ui_update_ble_status(ble_state_t state, const char* name, const char* mac) 
     }
 }
 
-void ui_update_battery(int percent, bool charging) {
-    int idx;
-    if (charging) {
-        idx = 4;  // charging icon
-    } else if (percent < 0) {
-        idx = 0;  // no battery / unknown
-    } else if (percent <= 10) {
-        idx = 0;  // empty
-    } else if (percent <= 35) {
-        idx = 1;  // low
-    } else if (percent <= 75) {
-        idx = 2;  // medium
-    } else {
-        idx = 3;  // full
-    }
-    lv_image_set_src(battery_img, &battery_dscs[idx]);
-    apply_battery_visibility();
+// No-op on CYD — no PMU / battery monitor hardware.
+void ui_update_battery(int /*percent*/, bool /*charging*/) {
 }
