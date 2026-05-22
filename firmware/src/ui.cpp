@@ -214,29 +214,29 @@ static lv_obj_t* make_pill(lv_obj_t* parent, const char* text) {
 static void init_battery_icons(void) {
 }
 
-// ======== Usage Screen (480x480) ========
+// ======== Usage Screen (320x240) ========
 
-#define PANEL_H     150
-#define PANEL_GAP   16
+#define PANEL_H     80
+#define PANEL_GAP   6
 
-// One Session/Weekly panel: big % label, pill on the right, bar, reset label.
-// Pill y=1: symmetric inside the panel — panel-outer-top → pill-top equals
-// pill-bottom → bar-top (pill height 42 + panel pad_top 12 + bar y=56).
+// One Session/Weekly panel sized for 320×240 landscape.
+// Pill top-left at y=8; big % right-aligned same baseline;
+// progress bar at y=44; reset label at y=58.
 static void make_usage_panel(lv_obj_t* parent, int y, const char* pill_text,
                              lv_obj_t** out_pct, lv_obj_t** out_pill,
                              lv_obj_t** out_bar, lv_obj_t** out_reset) {
     lv_obj_t* panel = make_panel(parent, MARGIN, y, CONTENT_W, PANEL_H);
 
+    *out_pill = make_pill(panel, pill_text);
+    lv_obj_set_pos(*out_pill, 0, 8);
+
     *out_pct = lv_label_create(panel);
     lv_label_set_text(*out_pct, "---%");
     lv_obj_set_style_text_font(*out_pct, &font_styrene_28, 0);
     lv_obj_set_style_text_color(*out_pct, COL_TEXT, 0);
-    lv_obj_set_pos(*out_pct, 0, 0);
+    lv_obj_align(*out_pct, LV_ALIGN_TOP_RIGHT, 0, 4);
 
-    *out_pill = make_pill(panel, pill_text);
-    lv_obj_align(*out_pill, LV_ALIGN_TOP_RIGHT, 0, 1);
-
-    *out_bar = make_bar(panel, 0, 56, CONTENT_W - 32, 24);
+    *out_bar = make_bar(panel, 0, 44, CONTENT_W - 32, 8);
 
     *out_reset = lv_label_create(panel);
     lv_label_set_text(*out_reset, "---");
@@ -259,7 +259,7 @@ static void init_usage_screen(lv_obj_t* scr) {
     lv_label_set_text(lbl_title, "Usage");
     lv_obj_set_style_text_font(lbl_title, &font_tiempos_22, 0);
     lv_obj_set_style_text_color(lbl_title, COL_TEXT, 0);
-    lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 16, TITLE_Y);
+    lv_obj_align(lbl_title, LV_ALIGN_TOP_LEFT, MARGIN, TITLE_Y);
 
     make_usage_panel(usage_container, CONTENT_Y, "Current",
                      &lbl_session_pct, &lbl_session_label,
@@ -272,7 +272,7 @@ static void init_usage_screen(lv_obj_t* scr) {
     lv_label_set_text(lbl_anim, "");
     lv_obj_set_style_text_font(lbl_anim, &font_mono_18, 0);
     lv_obj_set_style_text_color(lbl_anim, COL_ACCENT, 0);
-    lv_obj_align(lbl_anim, LV_ALIGN_BOTTOM_MID, 0, -15);
+    lv_obj_align(lbl_anim, LV_ALIGN_BOTTOM_MID, 0, -4);
 }
 
 // ======== Bluetooth Screen (480x480) ========
