@@ -3,6 +3,8 @@
 #include <lvgl.h>
 #include "display_cfg.h"
 #include "touch.h"
+#include "ui.h"
+#include "data.h"
 
 TFT_eSPI tft;
 
@@ -122,27 +124,26 @@ void setup() {
     lv_indev_set_read_cb(indev, lvgl_touch_read_cb);
     lv_indev_set_long_press_time(indev, 1500);   // for destructive actions later
 
-    // Smoke test: orange rectangle on black
-    lv_obj_t* scr = lv_screen_active();
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    lv_obj_t* box = lv_obj_create(scr);
-    lv_obj_set_size(box, 200, 80);
-    lv_obj_center(box);
-    lv_obj_set_style_bg_color(box, lv_color_hex(0xd97757), 0);
-    lv_obj_t* lbl = lv_label_create(box);
-    lv_label_set_text(lbl, "Tap me");
-    lv_obj_add_event_cb(box, [](lv_event_t* e) {
-        static bool on = false;
-        on = !on;
-        lv_obj_set_style_bg_color(lv_event_get_target_obj(e),
-            lv_color_hex(on ? 0x788c5d : 0xd97757), 0);
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_center(lbl);
+    // Real UI bring-up
+    ui_init();
+
+    // Inject a fake usage payload so the screen has content while BLE
+    // isn't wired up yet. Real updates land via ble.cpp + ui_update().
+    UsageData fake = {};
+    fake.session_pct        = 42.0f;
+    fake.session_reset_mins = 137;
+    fake.weekly_pct         = 68.0f;
+    fake.weekly_reset_mins  = 6360;
+    strncpy(fake.status, "allowed", sizeof(fake.status) - 1);
+    fake.ok    = true;
+    fake.valid = true;
+    ui_update(&fake);
+    ui_show_screen(SCREEN_USAGE);
 }
 
 void loop() {
     touch_read();
+    ui_tick_anim();
     lv_timer_handler();
     check_serial_cmd();
     delay(5);
