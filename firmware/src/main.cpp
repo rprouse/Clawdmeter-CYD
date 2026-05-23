@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <TFT_eSPI.h>
 #include <lvgl.h>
 #include "display_cfg.h"
@@ -6,15 +7,16 @@
 #include "ui.h"
 #include "data.h"
 #include "splash.h"
-#include "ui.h"
-#include "data.h"
+#include "ble.h"
+#include "usage_rate.h"
 
 TFT_eSPI tft;
 
-// Double-buffered partial render. Two 320×20 buffers in SRAM (~12.5 KB each).
-// Sized down from the design's 320×40 — at 320×40 the linker overflows DRAM
-// by ~15 KB once LVGL/NimBLE/Arduino runtime/font tables are accounted for.
-#define BUF_LINES 20
+// Double-buffered partial render. Two 320×10 buffers in SRAM (~6.4 KB each).
+// Sized down from 320×40 (the design's value) and then from 320×20 — each
+// halving was forced by a DRAM overflow as more subsystems linked in
+// (LVGL fonts first, then NimBLE + ArduinoJson). No PSRAM on the CYD.
+#define BUF_LINES 10
 static uint16_t buf1[SCR_W * BUF_LINES];
 static uint16_t buf2[SCR_W * BUF_LINES];
 static lv_display_t* lv_disp = nullptr;
@@ -30,6 +32,26 @@ static void disp_flush(lv_display_t* disp, const lv_area_t* area, uint8_t* px_ma
 }
 
 static uint32_t millis_cb(void) { return millis(); }
+
+static UsageData usage = {};
+static ble_state_t last_ble_state = BLE_STATE_INIT;
+
+static bool parse_json(const char* json, UsageData* out) {
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, json);
+    if (err) {
+        Serial.printf("JSON parse error: %s\n", err.c_str());
+        return false;
+    }
+    out->session_pct        = doc["s"]  | 0.0f;
+    out->session_reset_mins = doc["sr"] | -1;
+    out->weekly_pct         = doc["w"]  | 0.0f;
+    out->weekly_reset_mins  = doc["wr"] | -1;
+    strlcpy(out->status, doc["st"] | "unknown", sizeof(out->status));
+    out->ok    = doc["ok"] | false;
+    out->valid = true;
+    return true;
+}
 
 // ---- Screenshot serial command ----
 //
@@ -127,20 +149,13 @@ void setup() {
     lv_indev_set_read_cb(indev, lvgl_touch_read_cb);
     lv_indev_set_long_press_time(indev, 1500);   // for destructive actions later
 
-    // Real UI bring-up
     ui_init();
 
-    // Inject a fake usage payload so the screen has content while BLE
-    // isn't wired up yet. Real updates land via ble.cpp + ui_update().
-    UsageData fake = {};
-    fake.session_pct        = 42.0f;
-    fake.session_reset_mins = 137;
-    fake.weekly_pct         = 68.0f;
-    fake.weekly_reset_mins  = 6360;
-    strncpy(fake.status, "allowed", sizeof(fake.status) - 1);
-    fake.ok    = true;
-    fake.valid = true;
-    ui_update(&fake);
+    ble_init();
+    last_ble_state = ble_get_state();
+    ui_update_ble_status(last_ble_state, ble_get_device_name(),
+                         ble_get_mac_address());
+
     ui_show_screen(SCREEN_SPLASH);
 }
 
@@ -150,5 +165,32 @@ void loop() {
     ui_tick_anim();
     lv_timer_handler();
     check_serial_cmd();
+
+    ble_tick();
+
+    ble_state_t bs = ble_get_state();
+    if (bs != last_ble_state) {
+        last_ble_state = bs;
+        ui_update_ble_status(bs, ble_get_device_name(),
+                             ble_get_mac_address());
+    }
+
+    if (ble_has_data()) {
+        if (parse_json(ble_get_data(), &usage)) {
+            int g_before = usage_rate_group();
+            usage_rate_sample(usage.session_pct);
+            int g_after = usage_rate_group();
+            if (g_after != g_before) {
+                Serial.printf("usage rate: group %d -> %d (s=%.2f%%)\n",
+                              g_before, g_after, usage.session_pct);
+                if (splash_is_active()) splash_pick_for_current_rate();
+            }
+            ui_update(&usage);
+            ble_send_ack();
+        } else {
+            ble_send_nack();
+        }
+    }
+
     delay(5);
 }
