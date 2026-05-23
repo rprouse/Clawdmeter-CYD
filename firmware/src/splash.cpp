@@ -81,23 +81,21 @@ static lv_color_t rgb565_to_lv(uint16_t c) {
     return lv_color_make(r, g, b);
 }
 
+// TEMP DIAGNOSTIC: fill canvas with a solid orange (0xDBAA in RGB565) so we
+// can verify whether the canvas widget is rendering AT ALL, independently of
+// the animation timing and palette decoding.
 static void render_frame(const uint8_t *cells, const uint16_t *palette) {
-    // Paint the side bars (and any uncovered area) in palette[0] so the art
-    // appears to bleed off the edges instead of being letterboxed in black.
-    if (splash_container && palette) {
-        lv_obj_set_style_bg_color(splash_container, rgb565_to_lv(palette[0]), 0);
+    (void)cells;
+    (void)palette;
+    static uint32_t calls = 0;
+    if ((calls++ % 60) == 0) {
+        Serial.printf("splash render_frame call=%lu buf=%p first=%04X\n",
+                      (unsigned long)calls, canvas_buf,
+                      canvas_buf ? canvas_buf[0] : 0);
     }
-    for (int gy = 0; gy < GRID; gy++) {
-        uint16_t row[CANVAS_W];
-        for (int gx = 0; gx < GRID; gx++) {
-            uint8_t code = cells[gy * GRID + gx];
-            uint16_t color = (palette && code < SPLASH_PALETTE_SIZE) ? palette[code] : COL_EMPTY;
-            uint16_t *p = &row[gx * CELL];
-            for (int i = 0; i < CELL; i++) p[i] = color;
-        }
-        for (int dy = 0; dy < CELL; dy++) {
-            memcpy(&canvas_buf[(gy * CELL + dy) * CANVAS_W], row, CANVAS_W * 2);
-        }
+    // Fill with solid orange (LVGL's lv_color_hex(0xd97757) = RGB565 0xDBAA)
+    if (canvas_buf) {
+        for (int i = 0; i < CANVAS_W * CANVAS_H; i++) canvas_buf[i] = 0xDBAA;
     }
     if (canvas) lv_obj_invalidate(canvas);
 }
