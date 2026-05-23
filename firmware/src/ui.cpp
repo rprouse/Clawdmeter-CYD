@@ -214,7 +214,7 @@ static void init_battery_icons(void) {
 
 // ======== Usage Screen (320x240) ========
 
-#define PANEL_H     80
+#define PANEL_H     81
 #define PANEL_GAP   6
 
 // One Session/Weekly panel sized for 320×240 landscape.
@@ -226,21 +226,21 @@ static void make_usage_panel(lv_obj_t* parent, int y, const char* pill_text,
     lv_obj_t* panel = make_panel(parent, MARGIN, y, CONTENT_W, PANEL_H);
 
     *out_pill = make_pill(panel, pill_text);
-    lv_obj_set_pos(*out_pill, 0, 3);
+    lv_obj_set_pos(*out_pill, 0, 1);
 
     *out_pct = lv_label_create(panel);
     lv_label_set_text(*out_pct, "---%");
     lv_obj_set_style_text_font(*out_pct, &font_styrene_28, 0);
     lv_obj_set_style_text_color(*out_pct, COL_TEXT, 0);
-    lv_obj_align(*out_pct, LV_ALIGN_TOP_RIGHT, 0, -1);
+    lv_obj_align(*out_pct, LV_ALIGN_TOP_RIGHT, 0, -3);
 
-    *out_bar = make_bar(panel, 0, 39, CONTENT_W - 32, 8);
+    *out_bar = make_bar(panel, 0, 37, CONTENT_W - 32, 8);
 
     *out_reset = lv_label_create(panel);
     lv_label_set_text(*out_reset, "---");
     lv_obj_set_style_text_font(*out_reset, &font_styrene_12, 0);
     lv_obj_set_style_text_color(*out_reset, COL_DIM, 0);
-    lv_obj_set_pos(*out_reset, 0, 53);
+    lv_obj_set_pos(*out_reset, 0, 51);
 }
 
 static void init_usage_screen(lv_obj_t* scr) {
@@ -386,7 +386,7 @@ void ui_init(void) {
     // with the screen titles).
     logo_img = lv_image_create(scr);
     lv_image_set_src(logo_img, &logo_dsc);
-    lv_obj_set_pos(logo_img, SCR_W - MARGIN - LOGO_WIDTH, TITLE_Y - 4);
+    lv_obj_set_pos(logo_img, SCR_W - MARGIN - LOGO_WIDTH, TITLE_Y - 6);
 
     // battery_img is not created — no PMU on CYD
 }
