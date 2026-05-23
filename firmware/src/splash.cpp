@@ -123,8 +123,10 @@ void splash_init(lv_obj_t *parent) {
     // LVGL's scale unit is 256 = 1x, so 12*256 = 3072.
     lv_image_set_scale(canvas, SCALE * 256);
     lv_image_set_antialias(canvas, false);
-    // After scaling, the canvas reports its scaled size; place its origin so
-    // the scaled image lands centered horizontally with 40px bars.
+    // Pivot at top-left of the 20x20 source so the scaled visual expands
+    // RIGHT-DOWN from the widget position. With the default center pivot,
+    // the scaled image ends up shifted half its scaled size up-and-left.
+    lv_image_set_pivot(canvas, 0, 0);
     lv_obj_set_pos(canvas, CANVAS_X, CANVAS_Y);
 
     // Placeholder label (visible only when no animations are loaded)
