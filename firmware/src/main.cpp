@@ -5,6 +5,9 @@
 #include "touch.h"
 #include "ui.h"
 #include "data.h"
+#include "splash.h"
+#include "ui.h"
+#include "data.h"
 
 TFT_eSPI tft;
 
@@ -138,11 +141,12 @@ void setup() {
     fake.ok    = true;
     fake.valid = true;
     ui_update(&fake);
-    ui_show_screen(SCREEN_USAGE);
+    ui_show_screen(SCREEN_SPLASH);
 }
 
 void loop() {
     touch_read();
+    splash_tick();
     ui_tick_anim();
     lv_timer_handler();
     check_serial_cmd();

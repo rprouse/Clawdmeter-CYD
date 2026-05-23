@@ -56,6 +56,7 @@ static lv_obj_t* logo_img;
 // ---- Shared ----
 static lv_image_dsc_t logo_dsc;
 static screen_t current_screen = SCREEN_USAGE;
+static screen_t prev_non_splash_screen = SCREEN_USAGE;
 
 // Animation state
 static uint32_t anim_last_ms = 0;
@@ -377,9 +378,16 @@ void ui_init(void) {
     init_bluetooth_screen(scr);
     splash_init(scr);
 
-    // Splash is touch-toggled — tap anywhere on the splash dismisses it
+    // Splash gestures:
+    //   short tap   → dismiss splash to the last non-splash screen
+    //   long press  → cycle to the next animation (uses the 1500ms indev default)
     if (splash_get_root()) {
-        lv_obj_add_event_cb(splash_get_root(), global_click_cb, LV_EVENT_CLICKED, NULL);
+        lv_obj_add_event_cb(splash_get_root(),
+            [](lv_event_t*) { ui_show_screen(prev_non_splash_screen); },
+            LV_EVENT_SHORT_CLICKED, NULL);
+        lv_obj_add_event_cb(splash_get_root(),
+            [](lv_event_t*) { splash_next(); },
+            LV_EVENT_LONG_PRESSED, NULL);
     }
 
     // Logo on top of all containers (top-right, inset — top-left would clash
@@ -437,8 +445,6 @@ void ui_tick_anim(void) {
         lv_label_set_text(lbl_anim, buf);
     }
 }
-
-static screen_t prev_non_splash_screen = SCREEN_USAGE;
 
 // LVGL handles click debouncing internally. Screen-level handler fires when
 // no child consumed the event (children only consume if they have their own

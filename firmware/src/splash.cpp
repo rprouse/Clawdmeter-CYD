@@ -2,15 +2,20 @@
 #include "splash_animations.h"
 #include "theme.h"
 #include "usage_rate.h"
+#include "display_cfg.h"
 #include <Arduino.h>
 #include <string.h>
-#include <esp_heap_caps.h>
 
-// 20x20 grid scaled 24x to fill 480x480
+// 20x20 grid scaled 12x — fills a 240x240 square area, centered horizontally
+// in the 320x240 landscape screen with 40px bars on each side. The bars get
+// the current animation's palette[0] color so the art appears to bleed off
+// the edge rather than being letterboxed.
 #define GRID         20
-#define CELL         24
+#define CELL         12
 #define CANVAS_W     (GRID * CELL)
 #define CANVAS_H     (GRID * CELL)
+#define CANVAS_X     ((SCR_W - CANVAS_W) / 2)   // 40
+#define CANVAS_Y     ((SCR_H - CANVAS_H) / 2)   // 0
 
 // Background fallback when palette is missing
 #define COL_EMPTY    0x0000  // true black (matches THEME_BG)
@@ -20,7 +25,7 @@ LV_FONT_DECLARE(font_styrene_28);
 static lv_obj_t *splash_container = NULL;
 static lv_obj_t *canvas = NULL;
 static lv_obj_t *label_status = NULL;     // shown only when no animations loaded
-static uint16_t *canvas_buf = NULL;        // 480x480 RGB565 (PSRAM)
+static uint16_t *canvas_buf = NULL;        // 240x240 RGB565 (SRAM)
 
 static uint16_t cur_anim = 0;
 static uint16_t cur_frame = 0;
@@ -68,7 +73,20 @@ static void resolve_group_lists(void) {
     }
 }
 
+// Convert an RGB565 palette entry to an lv_color_t (8-bit-per-channel).
+static lv_color_t rgb565_to_lv(uint16_t c) {
+    uint8_t r = ((c >> 11) & 0x1F) << 3;
+    uint8_t g = ((c >> 5)  & 0x3F) << 2;
+    uint8_t b = ( c        & 0x1F) << 3;
+    return lv_color_make(r, g, b);
+}
+
 static void render_frame(const uint8_t *cells, const uint16_t *palette) {
+    // Paint the side bars (and any uncovered area) in palette[0] so the art
+    // appears to bleed off the edges instead of being letterboxed in black.
+    if (splash_container && palette) {
+        lv_obj_set_style_bg_color(splash_container, rgb565_to_lv(palette[0]), 0);
+    }
     for (int gy = 0; gy < GRID; gy++) {
         uint16_t row[CANVAS_W];
         for (int gx = 0; gx < GRID; gx++) {
@@ -92,14 +110,14 @@ static void show_placeholder() {
 }
 
 void splash_init(lv_obj_t *parent) {
-    canvas_buf = (uint16_t*)heap_caps_malloc(CANVAS_W * CANVAS_H * 2, MALLOC_CAP_SPIRAM);
+    canvas_buf = (uint16_t*)malloc(CANVAS_W * CANVAS_H * 2);   // ~115 KB SRAM
     if (!canvas_buf) {
         Serial.println("splash: failed to alloc canvas buffer");
         return;
     }
 
     splash_container = lv_obj_create(parent);
-    lv_obj_set_size(splash_container, 480, 480);
+    lv_obj_set_size(splash_container, SCR_W, SCR_H);
     lv_obj_set_pos(splash_container, 0, 0);
     lv_obj_set_style_bg_color(splash_container, THEME_BG, 0);
     lv_obj_set_style_bg_opa(splash_container, LV_OPA_COVER, 0);
@@ -109,7 +127,7 @@ void splash_init(lv_obj_t *parent) {
 
     canvas = lv_canvas_create(splash_container);
     lv_canvas_set_buffer(canvas, canvas_buf, CANVAS_W, CANVAS_H, LV_COLOR_FORMAT_RGB565);
-    lv_obj_center(canvas);
+    lv_obj_set_pos(canvas, CANVAS_X, CANVAS_Y);
 
     // Placeholder label (visible only when no animations are loaded)
     label_status = lv_label_create(splash_container);
