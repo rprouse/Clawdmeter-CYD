@@ -1,66 +1,88 @@
 # Project context
 
-ESP32-S3 firmware for a desk-side Claude Code usage monitor on a **Waveshare ESP32-S3-Touch-AMOLED-2.16** board (480×480 square AMOLED). Connects to a host daemon over BLE; daemon polls Anthropic API for usage data.
+ESP32 firmware for a desk-side Claude Code usage monitor on an **AOKIN CYD board (ESP32-2432S028R, 320×240 landscape resistive-touch TFT)**. Connects to a host daemon over BLE; daemon polls Anthropic API for usage data.
 
 This file is for future Claude Code sessions to bootstrap quickly. Read this first.
 
+> Forked from the upstream Clawdmeter project, which targets a Waveshare ESP32-S3 AMOLED board with auto-rotation, battery, and physical buttons. The CYD port drops all of that. Spec: `docs/superpowers/specs/2026-05-19-cyd-port-design.md`. Plan: `docs/superpowers/plans/2026-05-19-cyd-port.md`.
+
 ## Hardware (critical pins)
 
-- Display: **CO5300** AMOLED via QSPI (CS=12, SCLK=38, SDIO0..3=4..7, RST=2)
-- Touch: **CST9220** via I2C (SDA=15, SCL=14, INT=11, addr=0x5A)
-- PMU: **AXP2101** on same I2C bus (addr=0x34) — battery, USB VBUS, PWR button IRQ
-- IMU: **QMI8658** on same I2C bus (addr=0x6B) — accelerometer for auto-rotation
-- Buttons: GPIO 0 (left → Space/voice-mode), GPIO 18 (right → Shift+Tab/mode-toggle), AXP PKEY (middle → cycle screens; on splash → cycle animations)
+- MCU: classic ESP32 (Tensilica LX6 dual-core, no PSRAM). PlatformIO `board = esp32dev`, `platform = espressif32@6.7.0`, `partitions = huge_app.csv`.
+- Display: **ST7789 (not ILI9341)** 320×240 IPS, SPI. Wired on **HSPI** (`USE_HSPI_PORT=1`). Pins MISO=12, MOSI=13, SCLK=14, CS=15, DC=2, RST=-1, BL=21.
+- Touch: **XPT2046** resistive on the same HSPI bus, CS=33. Calibration is persisted in NVS under namespace `clawd` key `tcal_v1`; first boot runs the cal screen, subsequent boots load from NVS. Serial command `touch-cal` wipes NVS and reboots into recalibration.
+- No PMU, no IMU, no physical buttons (BOOT button is flashing-only). Reserved-but-unused pins documented in `firmware/src/display_cfg.h`: GPIO 26 (speaker amp), 34 (LDR), 5 (SD CS), 4/16/17 (RGB LED), 0 (BOOT).
+
+**The CYD form factor is sold with multiple display controllers** (ILI9341 in older batches, ST7789 in newer including the AOKIN board we use), and product listings rarely disclose which. If you see weird color shifts or rotation/MADCTL issues, suspect chip identity before suspecting your code.
+
+A working **non-LVGL reference** for this exact physical board lives at `D:\src\Electronics\CarDashboard` — diff against its `platformio.ini` first when in doubt about any panel-driver setting.
+
+Known-good TFT_eSPI `build_flags` (all in `platformio.ini` since `USER_SETUP_LOADED=1`):
+
+```ini
+-DUSER_SETUP_LOADED=1
+-DST7789_DRIVER=1
+-DTFT_WIDTH=240
+-DTFT_HEIGHT=320
+-DTFT_RGB_ORDER=TFT_BGR
+-DTFT_INVERSION_OFF=1        ; ST7789 defaults to inverted; turn off explicitly
+-DTFT_MISO=12 -DTFT_MOSI=13 -DTFT_SCLK=14 -DTFT_CS=15 -DTFT_DC=2 -DTFT_RST=-1
+-DUSE_HSPI_PORT=1            ; CYD wires TFT on HSPI not VSPI
+-DTFT_BL=21 -DTFT_BACKLIGHT_ON=HIGH
+-DSPI_FREQUENCY=55000000
+-DTOUCH_CS=33                ; XPT2046
+```
+
+Runtime setup is just `tft.init()` + `tft.setRotation(1)` — **no manual MADCTL writes, no `TFT_RGB_ORDER` overrides via macro tricks**. Because LVGL's flush callback uses `pushPixelsDMA`, also call `tft.setSwapBytes(true)` once at init (affects `pushPixelsDMA` only — not `fillRect`/`drawString`).
 
 ## Architecture
 
 ```text
-main.cpp        — setup(), loop(), button polling (left→Space, right→Shift+Tab, mid→cycle), rotation flash
-display_cfg.h   — pin defines, extern object decls
-ui.{h,cpp}      — 3-screen UI (splash, usage, bluetooth); splash is touch-toggled, usage↔bluetooth via mid button
-splash.{h,cpp}  — 20×20 pixel-art animation engine, 24× upscale to 480×480
-imu.{h,cpp}     — accelerometer-driven rotation tracker (returns 0..3)
-power.{h,cpp}   — AXP2101 wrapper (battery %, charging, VBUS, PWR button)
-touch.{h,cpp}   — minimal tap detector → ui_toggle_splash() (Usage/Splash) or ble_clear_bonds() (BT reset zone)
-ble.{h,cpp}     — NimBLE peripheral: custom data service + HID keyboard
-data.h          — UsageData struct
-icons.h         — icon arrays. Battery (5×) are RGB565A8 with alpha; rest are raw RGB565.
-logo.h          — 80×80 RGB565 logo
-font_*.c        — pre-compiled LVGL 9 bitmap fonts (Tiempos 56, Styrene 48/28/24/20, Mono 32)
+main.cpp        — setup(), loop(), BLE wire-up, screenshot serial command
+display_cfg.h   — pin macros (all panel pins come from platformio.ini build_flags)
+ui.{h,cpp}      — 2 functional screens (Usage, Bluetooth) + Splash; tap cycles Usage↔Bluetooth, long-press on BT reset zone clears bonds
+splash.{h,cpp}  — 20×20 pixel-art animation engine, 12× upscale to 240×240 centered, palette[0] fills the 40px side bars
+touch.{h,cpp}   — XPT2046 polling via tft.getTouch(); NVS-persisted calibration
+ble.{h,cpp}     — NimBLE peripheral: custom data service (UUIDs unchanged from upstream) + HID keyboard (no buttons today but kept for future use)
+usage_rate.{h,cpp} — running-window classifier of session_pct → animation group
+data.h          — UsageData struct (wire format unchanged)
+icons.h         — icon arrays sized for 320×240 (BT 24×24, trash 16×16)
+logo.h          — 48×48 RGB565A8 logo
+font_*.c        — LVGL 9 bitmap fonts (Tiempos 22, Styrene 12/16/28, Mono 18)
 splash_animations.h — generated, do not hand-edit
 ```
 
 ## Build / flash
 
 ```bash
-pio run -d firmware                                       # build
-pio run -d firmware -t upload --upload-port /dev/ttyACM0  # flash (binary path uses USB JTAG)
+pio run -d firmware -e cyd                                # build
+pio run -d firmware -e cyd -t upload                      # flash; CH340 USB-UART, picks the COM/ttyUSB automatically
+pio device monitor -e cyd                                 # serial @ 115200
 ```
 
-`/home/hermann/.platformio/penv/bin/pio` if `pio` isn't on PATH.
+If `pio` isn't on PATH on Windows: `%USERPROFILE%\.platformio\penv\Scripts\pio.exe`.
 
-Device shows up as `/dev/ttyACM0` (Espressif USB JTAG/serial debug unit). No boot-mode gymnastics needed — direct flash works.
+The CYD uses a **CH340 USB-UART**, not Espressif USB JTAG. On Windows it enumerates as `COM*`; on Linux as `/dev/ttyUSB*`. The CH340 driver ships with current Windows but may need installing on older systems. No boot-mode gymnastics — direct `pio … -t upload` Just Works.
 
 ## QA your own UI changes — don't ask the user
 
-The firmware ships a `screenshot` serial command that dumps the LVGL framebuffer over `/dev/ttyACM0`. `./screenshot.sh out.png /dev/ttyACM0` captures a 480×480 PNG. **Use this on every UI iteration** — Read the PNG with the Read tool, verify the change visually, iterate.
+The firmware ships a `screenshot` serial command that streams the LVGL screen as raw RGB565 over USB serial, framed by `SCREENSHOT_START w h size` / `SCREENSHOT_END`. `./screenshot.sh out.png COM3` (or `/dev/ttyUSB0`) captures a 320×240 PNG. **Use this on every UI iteration** — Read the PNG with the Read tool, verify visually, iterate.
 
-The boot screen is `SCREEN_SPLASH` and only advances on a physical button press, so a fresh flash will sit on the splash. To screenshot the screen you're actually editing without asking the user to press a button, **temporarily change the default boot screen** in `main.cpp` (search for `ui_show_screen(SCREEN_SPLASH);`) to `SCREEN_USAGE` / `SCREEN_CONTROLLER` / `SCREEN_BLUETOOTH`, do your iteration, then revert before committing.
+Boot screen is `SCREEN_SPLASH` and only advances on a screen tap, so a fresh flash sits on the splash. To screenshot the screen you're editing without asking the user to tap, **temporarily change the default boot screen** in `main.cpp` (search for `ui_show_screen(SCREEN_SPLASH);`) to `SCREEN_USAGE` / `SCREEN_BLUETOOTH`, iterate, then revert before committing.
 
 ## Critical gotchas
 
-1. **CO5300 cannot rotate.** Its MADCTL only supports axis flips, not column/row exchange. Rotation is done by **CPU pixel remapping in `my_flush_cb`** in main.cpp. We use **PARTIAL render mode with strip rotation** (small 480×40 strips, fast). On rotation change → AMOLED brightness flash → force redraw.
-2. **OPI PSRAM** required: `board_build.arduino.memory_type = qio_opi` in platformio.ini. Without this, `MALLOC_CAP_SPIRAM` returns NULL and the screen is black.
-3. **pioarduino platform required.** GFX Library for Arduino needs Arduino Core 3.x (`esp32-hal-periman.h`), not the 2.x that standard `espressif32` ships. We pin `pioarduino/platform-espressif32` 55.03.38-1.
-4. **LVGL 9 font patching.** `lv_font_conv` outputs LVGL 8 format. Must remove `#if LVGL_VERSION_MAJOR >= 8` guards, drop `.cache` field, add `.release_glyph`, `.kerning`, `.static_bitmap`, `.fallback`, `.user_data`. Without patching, fonts render invisible.
-5. **Touch reading must be centralized.** CST9220's `getPoint()` does a full I2C transaction. Calling it from multiple places consumed each other's data and broke input. `touch_read()` is called once per loop in main.cpp; both LVGL `my_touch_cb` and `touch.cpp` read from shared `touch_pressed/touch_x/touch_y` state.
-6. **CO5300 needs even-aligned flush regions.** `rounder_cb` enforces this.
-7. **Touch `setSwapXY(true)` and `setMirrorXY(true, false)`** are the empirically-correct values for default rotation 0. IMU rotation logic doesn't change touch mapping (it does CPU-side rotation of the rendered pixels, so LVGL still thinks the display is portrait at 0°).
-8. **LVGL RGB565A8 is planar.** `w*h` RGB565 pixels followed by `w*h` alpha bytes; `data_size = w*h*3`, `stride = w*2`. Use `init_icon_dsc_rgb565a8()` for icons that overlap non-uniform backgrounds (e.g. battery over splash). Lucide source PNGs are black-on-transparent — converter must tint to white or icons render invisible. See `tools/png_to_lvgl.js`.
+1. **No PSRAM — DRAM is the binding constraint.** LVGL render buffers, NimBLE bond tables, ArduinoJson heap docs, and font glyph tables all share the ~327 KB of internal SRAM. We use **two 320×10 RGB565 partial-render buffers** (~6.4 KB each); each previous halving was forced by a `dram0_0_seg` overflow as more subsystems linked in. If you add a feature that touches DRAM (e.g. a bigger font), expect to either shrink buffers further or drop to single-buffer.
+2. **LVGL 9 font patching.** `lv_font_conv` outputs LVGL 8 format. Must remove `#if LVGL_VERSION_MAJOR >= 8` guards, drop `.cache` field, add `.release_glyph`, `.kerning`, `.static_bitmap`, `.fallback`, `.user_data`. Without patching, fonts render invisible.
+3. **Touch reading must be centralized.** `tft.getTouch()` does an SPI transaction that costs ~ms. `touch_read()` is called once per main-loop iteration in `main.cpp`; LVGL's `lvgl_touch_read_cb` and any other readers consume the shared `touch_pressed/touch_x/touch_y` state.
+4. **First-boot calibration is mandatory.** XPT2046 raw values vary enough across panels that taps land tens-of-pixels off without per-device calibration. The cal screen runs once when NVS has no entry; thereafter `tft.setTouch(cal_data)` is applied at init. `touch-cal` serial command clears NVS and reboots if calibration drifts.
+5. **`tft.setSwapBytes(true)`** is required at init because LVGL hands the flush callback little-endian RGB565 but `pushPixelsDMA` writes raw bytes. It affects ONLY `pushPixelsDMA` — direct `tft.fillRect`/`drawString` calls don't swap.
+6. **LVGL RGB565A8 is planar.** `w*h` RGB565 pixels followed by `w*h` alpha bytes; `data_size = w*h*3`, `stride = w*2`. Use `init_icon_dsc_rgb565a8()` for icons over non-uniform backgrounds. Lucide source PNGs are black-on-transparent — converter must tint or icons render invisible. See `tools/png_to_lvgl.js`.
+7. **`huge_app.csv` partition is mandatory.** LVGL + NimBLE + fonts together exceed the 1.5 MB default app slot. If the linker complains about image size, confirm `board_build.partitions = huge_app.csv` in `platformio.ini`.
 
 ## Icons
 
-`tools/png_to_lvgl.js <input.png> <symbol> [W_MACRO] [H_MACRO] [--tint=RRGGBB | --no-tint]` converts an alpha PNG to RGB565A8. Default tint is white (`0xFFFFFF`) — necessary for Lucide PNGs. Splice output into `firmware/src/icons.h` and use `init_icon_dsc_rgb565a8()` in ui.cpp. Currently only the 5 battery icons use this format; the rest are still raw RGB565 baked over the panel background, fine because they live inside opaque zones.
+`tools/png_to_lvgl.js <input.png> <symbol> [W_MACRO] [H_MACRO] [--tint=RRGGBB | --no-tint]` converts an alpha PNG to RGB565A8. Default tint is white (`0xFFFFFF`) — necessary for Lucide PNGs. Splice output into `firmware/src/icons.h` and use `init_icon_dsc_rgb565a8()` in `ui.cpp`.
 
 ## Splash animations
 
@@ -72,22 +94,15 @@ node tools/scrape_claudepix.js  # → tools/claudepix_data/*.json
 node tools/convert_to_c.js      # → firmware/src/splash_animations.h
 ```
 
-Each animation has a per-animation 10-color RGB565 palette. Cell values 0..9 index it. Default boot screen.
+Each animation has a per-animation 10-color RGB565 palette. Cell values 0..9 index it. The 20×20 native grid is upscaled 12× to 240×240 and centered on the 320×240 panel; the leftover 40px columns on either side are filled with `palette[0]` so the bars blend with the animation rather than letterboxing in black. `usage_rate_sample()` classifies the current session burn-rate into a group, and `splash_pick_for_current_rate()` swaps to a creature appropriate to that group on the next state change.
 
 ## User profile / preferences
 
-See `~/.claude/projects/.../memory/` files for persistent context (user is an embedded-beginner senior dev, brand-conscious, prefers iterative UI refinement, dislikes me authoring my own art when third-party assets are intended). Always read those memory files at session start.
-
-## Recent session highlights
-
-- Migrated from Panlee SC01 Plus (480×320 IPS) to Waveshare 2.16" AMOLED (480×480 square). Full hardware/library swap.
-- Added IMU auto-rotation, battery indicator, USB-state-aware screen switching.
-- Added splash screen with scraped pixel-art animations and 3-button physical input layout.
-- Fonts and icons re-scaled ~1.9× for the higher-DPI panel.
-- All UI margins widened to 20px to clear the rounded display corners.
-- Battery icons converted to RGB565A8 alpha so they blend cleanly over the splash animations.
+See `~/.claude/projects/D--src-Electronics-Clawdmeter/memory/` files for persistent context (user is an embedded-beginner senior dev, brand-conscious, prefers iterative UI refinement, dislikes me authoring my own art when third-party assets are intended). Always read those memory files at session start.
 
 ## Daemon / host side
+
+The CYD port **preserved the existing BLE wire protocol** (name, UUIDs, JSON shape) so the upstream daemon works against the CYD firmware unchanged. The daemon section below still describes the in-tree `daemon/claude-usage-daemon.sh`.
 
 Bash daemon (`daemon/claude-usage-daemon.sh`) reads OAuth token, polls Anthropic API, sends JSON over BLE GATT. Run with `systemctl --user start claude-usage-daemon`. The unit file's `ExecStart` is the absolute path to the script — repoint it when switching between the worktree and the main checkout.
 
