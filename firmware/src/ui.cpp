@@ -349,7 +349,7 @@ static void init_bluetooth_screen(lv_obj_t* scr) {
 
     // Single-line credit at bottom
     lv_obj_t* lbl_credit = lv_label_create(ble_container);
-    lv_label_set_text(lbl_credit, "Built by @hermannbjorgvin \xC2\xB7 Clawd by @amaanbuilds");
+    lv_label_set_text(lbl_credit, "Rebuilt by @rprouse");
     lv_obj_set_style_text_font(lbl_credit, &font_styrene_12, 0);
     lv_obj_set_style_text_color(lbl_credit, COL_DIM, 0);
     lv_obj_align(lbl_credit, LV_ALIGN_BOTTOM_MID, 0, -4);
