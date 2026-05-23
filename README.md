@@ -36,6 +36,7 @@ The CYD form factor ships with different display controllers depending on batch 
 - [PlatformIO CLI](https://docs.platformio.org/en/latest/core/installation/index.html)
 - Linux: `curl`, `bluetoothctl`, `busctl` (BlueZ Bluetooth stack)
 - macOS: `python3` (the installer sets up a venv with `bleak` and `httpx`)
+- Windows: [Python 3](https://www.python.org/downloads/) on `PATH` (tick *Add Python to PATH* in the installer; `install.bat` runs `pip install bleak httpx` for you)
 - Claude Code with an active subscription
 - CH340 USB-UART driver (built into modern Windows/Linux/macOS; older Windows may need it installed)
 
@@ -78,12 +79,33 @@ View logs: `journalctl --user -u claude-usage-daemon -f`
 
 ## Windows installation
 
+### Flash the firmware
+
 ```powershell
 cd firmware
 pio run -e cyd -t upload    # CH340 enumerates as COM3/COM4/etc.
 ```
 
-The host-side daemon does not currently have a Windows port; pair manually via Settings → Bluetooth and run the Linux daemon from WSL or a separate machine.
+### Install the daemon
+
+The Windows daemon is the same `daemon/claude_usage_daemon.py` script the macOS port uses; `install.bat` registers it as a **Windows Task Scheduler** task named "Claude Usage Daemon" that runs at computer startup as your user (via S4U, so no password is stored) and auto-restarts every minute on failure.
+
+**Right-click `install.bat` and choose *Run as administrator*** (elevation is required to register an S4U task). The installer will:
+
+1. Confirm `python.exe` is on `PATH` and bail with install instructions if not.
+2. `pip install --upgrade bleak httpx`.
+3. Register the scheduled task pointing at `daemon\claude_usage_daemon.py` in this repo.
+
+To start it without rebooting, or to manage it later:
+
+```powershell
+schtasks /Run    /TN "Claude Usage Daemon"   # start now
+schtasks /Query  /TN "Claude Usage Daemon" /V /FO LIST   # status
+schtasks /End    /TN "Claude Usage Daemon"   # stop
+schtasks /Delete /TN "Claude Usage Daemon" /F   # uninstall
+```
+
+Live history is in **Task Scheduler → Task Scheduler Library → Claude Usage Daemon → History**.
 
 ## macOS installation
 
