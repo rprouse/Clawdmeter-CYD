@@ -226,21 +226,21 @@ static void make_usage_panel(lv_obj_t* parent, int y, const char* pill_text,
     lv_obj_t* panel = make_panel(parent, MARGIN, y, CONTENT_W, PANEL_H);
 
     *out_pill = make_pill(panel, pill_text);
-    lv_obj_set_pos(*out_pill, 0, 8);
+    lv_obj_set_pos(*out_pill, 0, 3);
 
     *out_pct = lv_label_create(panel);
     lv_label_set_text(*out_pct, "---%");
     lv_obj_set_style_text_font(*out_pct, &font_styrene_28, 0);
     lv_obj_set_style_text_color(*out_pct, COL_TEXT, 0);
-    lv_obj_align(*out_pct, LV_ALIGN_TOP_RIGHT, 0, 4);
+    lv_obj_align(*out_pct, LV_ALIGN_TOP_RIGHT, 0, -1);
 
-    *out_bar = make_bar(panel, 0, 44, CONTENT_W - 32, 8);
+    *out_bar = make_bar(panel, 0, 39, CONTENT_W - 32, 8);
 
     *out_reset = lv_label_create(panel);
     lv_label_set_text(*out_reset, "---");
     lv_obj_set_style_text_font(*out_reset, &font_styrene_12, 0);
     lv_obj_set_style_text_color(*out_reset, COL_DIM, 0);
-    lv_obj_set_pos(*out_reset, 0, 58);
+    lv_obj_set_pos(*out_reset, 0, 53);
 }
 
 static void init_usage_screen(lv_obj_t* scr) {
@@ -283,6 +283,7 @@ static void init_bluetooth_screen(lv_obj_t* scr) {
     lv_obj_set_style_border_width(ble_container, 0, 0);
     lv_obj_set_style_pad_all(ble_container, 0, 0);
     lv_obj_clear_flag(ble_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(ble_container, global_click_cb, LV_EVENT_CLICKED, NULL);
 
     // Title
     lv_obj_t* lbl_ble_title = lv_label_create(ble_container);
@@ -381,10 +382,11 @@ void ui_init(void) {
         lv_obj_add_event_cb(splash_get_root(), global_click_cb, LV_EVENT_CLICKED, NULL);
     }
 
-    // Logo on top of all containers (top-left, inset)
+    // Logo on top of all containers (top-right, inset — top-left would clash
+    // with the screen titles).
     logo_img = lv_image_create(scr);
     lv_image_set_src(logo_img, &logo_dsc);
-    lv_obj_set_pos(logo_img, MARGIN, TITLE_Y - 4);
+    lv_obj_set_pos(logo_img, SCR_W - MARGIN - LOGO_WIDTH, TITLE_Y - 4);
 
     // battery_img is not created — no PMU on CYD
 }
@@ -440,12 +442,11 @@ static screen_t prev_non_splash_screen = SCREEN_USAGE;
 
 // LVGL handles click debouncing internally. Screen-level handler fires when
 // no child consumed the event (children only consume if they have their own
-// event callback, e.g. the Reset Bluetooth zone). On BT screen we skip the
-// splash toggle so only the reset zone is interactive there.
+// event callback, e.g. the Bluetooth reset zone). A tap on Usage or BT cycles
+// to the other screen. Splash toggling is wired separately in Task 5.4.
 static void global_click_cb(lv_event_t* e) {
     (void)e;
-    if (ui_get_current_screen() == SCREEN_BLUETOOTH) return;
-    ui_toggle_splash();
+    ui_cycle_screen();
 }
 
 static void ble_reset_click_cb(lv_event_t* e) {
