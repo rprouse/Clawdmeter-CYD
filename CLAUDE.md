@@ -54,10 +54,12 @@ splash_animations.h — generated, do not hand-edit
 
 ## Build / flash
 
+Two envs exist for the two CYD display variants — use `ESP32_2432S028R_ST7789` for the AOKIN board this project targets; `ESP32_2432S028R_ILI9341` is for older CYD batches with the ILI9341 controller.
+
 ```bash
-pio run -d firmware -e cyd                                # build
-pio run -d firmware -e cyd -t upload                      # flash; CH340 USB-UART, picks the COM/ttyUSB automatically
-pio device monitor -e cyd                                 # serial @ 115200
+pio run -d firmware -e ESP32_2432S028R_ST7789                # build
+pio run -d firmware -e ESP32_2432S028R_ST7789 -t upload      # flash; CH340 USB-UART, picks the COM/ttyUSB automatically
+pio device monitor -e ESP32_2432S028R_ST7789                 # serial @ 115200
 ```
 
 If `pio` isn't on PATH on Windows: `%USERPROFILE%\.platformio\penv\Scripts\pio.exe`.

@@ -379,11 +379,11 @@ void ui_init(void) {
     splash_init(scr);
 
     // Splash gestures:
-    //   short tap   → dismiss splash to the last non-splash screen
+    //   short tap   → advance the screen cycle (splash → usage → bluetooth → splash)
     //   long press  → cycle to the next animation (uses the 1500ms indev default)
     if (splash_get_root()) {
         lv_obj_add_event_cb(splash_get_root(),
-            [](lv_event_t*) { ui_show_screen(prev_non_splash_screen); },
+            [](lv_event_t*) { ui_cycle_screen(); },
             LV_EVENT_SHORT_CLICKED, NULL);
         lv_obj_add_event_cb(splash_get_root(),
             [](lv_event_t*) { splash_next(); },
@@ -483,7 +483,13 @@ void ui_show_screen(screen_t screen) {
 }
 
 void ui_cycle_screen(void) {
-    screen_t next = (current_screen == SCREEN_USAGE) ? SCREEN_BLUETOOTH : SCREEN_USAGE;
+    screen_t next;
+    switch (current_screen) {
+    case SCREEN_SPLASH:    next = SCREEN_USAGE;     break;
+    case SCREEN_USAGE:     next = SCREEN_BLUETOOTH; break;
+    case SCREEN_BLUETOOTH: next = SCREEN_SPLASH;    break;
+    default:               next = SCREEN_USAGE;     break;
+    }
     ui_show_screen(next);
 }
 
