@@ -149,7 +149,13 @@ def save_address(addr: str) -> None:
 
 async def scan_for_device() -> str | None:
     log(f"Scanning for '{DEVICE_NAME}' ({SCAN_TIMEOUT}s)...")
-    devices = await BleakScanner.discover(timeout=SCAN_TIMEOUT)
+    try:
+        devices = await BleakScanner.discover(timeout=SCAN_TIMEOUT)
+    except (BleakError, asyncio.TimeoutError, OSError) as e:
+        # Same transient WinRT radio failure mode as connect() (see
+        # connect_and_run). Report "not found" so main() backs off and rescans.
+        log(f"Scan failed: {e}")
+        return None
     for d in devices:
         if d.name == DEVICE_NAME:
             log(f"Found: {d.address}")
@@ -237,7 +243,12 @@ async def connect_and_run(address: str, stop_event: asyncio.Event) -> bool:
     client = BleakClient(address)
     try:
         await client.connect()
-    except (BleakError, asyncio.TimeoutError) as e:
+    except (BleakError, asyncio.TimeoutError, OSError) as e:
+        # OSError covers transient WinRT radio errors that bleak does not wrap
+        # in BleakError, e.g. WinError -2147023728 ("Element not found") when
+        # the Bluetooth adapter is momentarily unavailable right after a
+        # disconnect. Treat these like any other failed connect and let the
+        # backoff loop in main() retry rather than crashing the daemon.
         log(f"Connection failed: {e}")
         return False
 
